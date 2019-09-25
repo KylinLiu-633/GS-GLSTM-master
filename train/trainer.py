@@ -1,0 +1,188 @@
+import argparse
+import sys
+import json
+import os
+import random
+
+import torch
+from torch.utils import data
+from utils import get_data_from_fof, get_data_from_file
+from data_preprocessing import get_dataset_from_instances, collect_data
+from data_preprocessing import word_mapping, char_mapping, edge_mapping
+
+
+from allennlp.modules.elmo import Elmo, batch_to_ids
+
+weights = "../data/pretrained_embedding/elmo_finetuned_matsci/elmo_weights.hdf5"
+options = "../data/pretrained_embedding/elmo_finetuned_matsci/elmo_options.json"
+
+# Set the pretrained embedder
+embedder = Elmo(options, weights, 2, dropout=0)  # The word representation's dimension of EMLO is 1024
+
+#
+# class Dataset(data.dataset):
+#
+#     # Set the property of Dataset
+#
+#     def __init__(self, source_data):
+#         self.data = source_data
+#         self.num_total_seqs = len(self.data)
+#
+#     def __getitem__(self, item):
+#         word = self.data[item]['word_str']
+#         pos = torch.Tensor(self.data[item]['pos'])
+#         ner = torch.Tensor(self.data[item]['ner'])
+#         # lemma = torch.Tensor(self.data[item]['lemma'])
+#         lemma = self.data[item]['lemma']
+#         target_data = torch.Tensor(self.data[item]['tags'])
+#         return word, pos, ner, lemma, target_data
+#
+#     def __len__(self):
+#         return self.num_total_seqs
+#
+#
+# def collate_fn(data):
+#     def merge(datas):
+#         # print("datas", datas)
+#         lengths = [len(x) for x in datas]
+#         character_ids = batch_to_ids(datas)
+#         embeddings = embedder(character_ids)
+#         input_datas = embeddings['elmo_representations'][0].double()
+#         # sentence_len = len(input_datas[0][0])
+#         sentence_len = len(input_datas[0])
+#         return input_datas, lengths, sentence_len
+#
+#     def merge_lemma(datas):
+#         character_ids = batch_to_ids(datas)
+#         embeddings = embedder(character_ids)
+#         input_datas = embeddings['elmo_representations'][0].double()
+#         return input_datas
+#
+#     def merge_target(datas, sentence_len):
+#         lengths = [len(x) for x in datas]
+#         padded_seqs = torch.zeros(len(datas), sentence_len).long()
+#         for i, seq in enumerate(datas):
+#             end = lengths[i]
+#             padded_seqs[i, :end] = seq[:end]
+#         return padded_seqs
+#
+#     # data.sort(key=lambda x: len(x[0]), reverse=True)
+#
+#     words, pos, ner, lemma, target_datas = zip(*data)
+#
+#     input_datas, input_lengths, sentence_len = merge(words)
+#     target_datas = merge_target(target_datas, sentence_len)
+#     lemma_datas = merge_lemma(lemma)
+#     pos_datas = merge_target(pos, sentence_len)
+#     ner_datas = merge_target(ner, sentence_len)
+#     # feature_datas = torch.stack((lemma_datas, pos_datas, ner_datas), dim=0)
+#     feature_datas = torch.stack((pos_datas, ner_datas), dim=0)
+#
+#     return input_datas, input_lengths, lemma_datas, feature_datas, target_datas, words
+
+
+if __name__ == "__main__":
+
+    # Get configuration
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config_path", type=str, default="config_file_song.json", help="The file path of configuration")
+
+    options, unparsed = parser.parse_known_args()
+
+    if options.config_path is not None:
+        print("Loading the configuration from " + options.config_path)
+
+        with open(options.config_path, "r") as f_in:
+            config_dict = json.load(f_in)
+            options.__dict__.update(config_dict)
+
+    if not options.__dict__.get("infile_format"):
+        options.__dict__["infile_format"] = "fof"
+
+    sys.stdout.flush()  # clear console buff
+
+    print("Configuration:")
+    print(options)
+
+    #  Save configuration to log files
+
+    model_dir = options.model_dir
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+
+    log_dir = options.log_dir
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
+    log_file_path = log_dir + "/song.{}".format(options.suffix) + ".log"
+    print("The path of log file: " + log_file_path)
+    log_file = open(log_file_path, "wt")
+    log_file.write(str(options) + "\n")
+    log_file.flush()
+
+    config_dict = vars(options)
+    with open(log_dir + "/song.{}".format(options.suffix) + "_config.json", "w") as f_out:
+        json.dump(config_dict, f_out, indent=4)
+
+    #  Read in data and separate them into training part and development part
+
+    print("Loading training set...")
+    if options.infile_format == "fof":
+        train_set, len_node, len_in_node, len_out_node, entity_type = get_data_from_fof(options)
+    else:
+        train_set, len_node, len_in_node, len_out_node, entity_type = get_data_from_file(options.train_path, options)
+
+    random.shuffle(train_set)
+    dev_set = train_set[:200]
+    train_set = train_set[200:]
+
+    print('Number of training samples:' + str(len(train_set)))
+    print('Number of development samples:' + str(len(dev_set)))
+
+    print("Number of node: " + str(len_node) + ", while max allowed is " + str(options.max_node_num))
+    print("Number of parent node: " + str(len_in_node) + ", truncated to " + str(options.max_in_node_num))
+    print("Number of child node: " + str(len_out_node) + ", truncated to " + str(options.max_out_node_num))
+    print("Number of entity type: " + str(entity_type) + ", truncated to " + str(options.entity_type))
+
+    # Build dictionary and mapping of words, characters, edges
+
+    words, chars, edges = collect_data(train_set)
+    print('Number of words:' + str(len(words)))
+    print('Number of characters:' + str(len(chars)))
+    print('Number of edges:' + str(len(edges)))
+
+    dict_word, word_to_id, id_to_word = word_mapping(words)
+    dict_char, char_to_id, id_to_char = char_mapping(chars)
+    dict_edge, edge_to_id, id_to_edge = edge_mapping(edges)
+
+    train_set = get_dataset_from_instances(train_set, word_to_id, char_to_id, edge_to_id, options)
+    dev_set = get_dataset_from_instances(dev_set, word_to_id, char_to_id, edge_to_id, options)
+    print(dev_set)
+
+    #  Build dataloader of training set and development set
+
+    batch_size = options.batch_size
+
+    # train_dataset = Dataset(train_set)
+    # train_loader = data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True,
+    #                                collate_fn=collate_fn, num_workers=0, drop_last=True)
+    #
+    # dev_dataset = Dataset(dev_set)
+    # dev_loader = data.DataLoader(dataset=dev_dataset, batch_size=batch_size, shuffle=True,
+    #                              collate_fn=collate_fn, num_workers=0, drop_last=True)
+
+
+
+
+    
+
+
+
+
+
+
+
+
+
+
