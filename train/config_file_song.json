@@ -12,7 +12,7 @@
     "only_single_sent": false,
 
     "batch_size": 8,
-    "num_syntax_match_layer": 5,
+    "gslstm_layer_num": 5,
     "max_node_num": 450,
     "max_in_node_num": 45,
     "max_out_node_num": 45,
@@ -23,6 +23,7 @@
     "dropout_rate": 0.3,
     "max_epochs": 50,
     "optimize_type": "adam",
+    "g_hidden_dim": 150,
 
     "with_highway": true,
     "highway_layer_num": 1,

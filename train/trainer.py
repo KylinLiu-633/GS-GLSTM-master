@@ -6,7 +6,7 @@ import random
 
 import torch
 from torch.utils import data
-from utils import get_data_from_fof, get_data_from_file
+from utils import get_data_from_fof, get_data_from_file, padding_3d
 from data_preprocessing import get_dataset_from_instances, collect_data
 from data_preprocessing import word_mapping, char_mapping, edge_mapping
 
@@ -19,66 +19,72 @@ options = "../data/pretrained_embedding/elmo_finetuned_matsci/elmo_options.json"
 # Set the pretrained embedder
 embedder = Elmo(options, weights, 2, dropout=0)  # The word representation's dimension of EMLO is 1024
 
-#
-# class Dataset(data.dataset):
-#
-#     # Set the property of Dataset
-#
-#     def __init__(self, source_data):
-#         self.data = source_data
-#         self.num_total_seqs = len(self.data)
-#
-#     def __getitem__(self, item):
-#         word = self.data[item]['word_str']
-#         pos = torch.Tensor(self.data[item]['pos'])
-#         ner = torch.Tensor(self.data[item]['ner'])
-#         # lemma = torch.Tensor(self.data[item]['lemma'])
-#         lemma = self.data[item]['lemma']
-#         target_data = torch.Tensor(self.data[item]['tags'])
-#         return word, pos, ner, lemma, target_data
-#
-#     def __len__(self):
-#         return self.num_total_seqs
-#
-#
-# def collate_fn(data):
-#     def merge(datas):
-#         # print("datas", datas)
-#         lengths = [len(x) for x in datas]
-#         character_ids = batch_to_ids(datas)
-#         embeddings = embedder(character_ids)
-#         input_datas = embeddings['elmo_representations'][0].double()
-#         # sentence_len = len(input_datas[0][0])
-#         sentence_len = len(input_datas[0])
-#         return input_datas, lengths, sentence_len
-#
-#     def merge_lemma(datas):
-#         character_ids = batch_to_ids(datas)
-#         embeddings = embedder(character_ids)
-#         input_datas = embeddings['elmo_representations'][0].double()
-#         return input_datas
-#
-#     def merge_target(datas, sentence_len):
-#         lengths = [len(x) for x in datas]
-#         padded_seqs = torch.zeros(len(datas), sentence_len).long()
-#         for i, seq in enumerate(datas):
-#             end = lengths[i]
-#             padded_seqs[i, :end] = seq[:end]
-#         return padded_seqs
-#
-#     # data.sort(key=lambda x: len(x[0]), reverse=True)
-#
-#     words, pos, ner, lemma, target_datas = zip(*data)
-#
-#     input_datas, input_lengths, sentence_len = merge(words)
-#     target_datas = merge_target(target_datas, sentence_len)
-#     lemma_datas = merge_lemma(lemma)
-#     pos_datas = merge_target(pos, sentence_len)
-#     ner_datas = merge_target(ner, sentence_len)
-#     # feature_datas = torch.stack((lemma_datas, pos_datas, ner_datas), dim=0)
-#     feature_datas = torch.stack((pos_datas, ner_datas), dim=0)
-#
-#     return input_datas, input_lengths, lemma_datas, feature_datas, target_datas, words
+
+class Dataset(data.Dataset):
+
+    # Set the property of Dataset
+
+    def __init__(self, source_data):
+        self.data = source_data
+        self.num_total_seqs = len(self.data)
+
+    def __getitem__(self, item):
+        lemmas_idx = self.data[item][0]
+        lemmas_char_idx = self.data[item][1]
+        in_node = self.data[item][2]
+        in_label_idx = self.data[item][3]
+        out_node = self.data[item][4]
+        out_label_idx = self.data[item][5]
+        entity_indexs = self.data[item][6]
+        truth_tags = self.data[item][7]
+
+        return lemmas_idx, lemmas_char_idx, in_node, in_label_idx, out_node, out_label_idx, entity_indexs, truth_tags
+
+    def __len__(self):
+        return self.num_total_seqs
+
+
+def collate_fn(data):
+    #  lemmas_idx, lemmas_char_idx, in_node, in_label_idx, out_node, out_label_idx, entity_indexs, truth_tags
+    def merge(datas):
+        print("datas", datas)
+        lengths = [len(x) for x in datas]
+        character_ids = batch_to_ids(datas)
+        embeddings = embedder(character_ids)
+        input_datas = embeddings['elmo_representations'][0].double()
+        # sentence_len = len(input_datas[0][0])
+        sentence_len = len(input_datas[0])
+        return input_datas, lengths, sentence_len
+
+    def merge_lemma(datas):
+        character_ids = batch_to_ids(datas)
+        embeddings = embedder(character_ids)
+        input_datas = embeddings['elmo_representations'][0].double()
+        return input_datas
+
+    def merge_target(datas, sentence_len):
+        lengths = [len(x) for x in datas]
+        padded_seqs = torch.zeros(len(datas), sentence_len).long()
+        for i, seq in enumerate(datas):
+            end = lengths[i]
+            padded_seqs[i, :end] = seq[:end]
+        return padded_seqs
+
+    # data.sort(key=lambda x: len(x[0]), reverse=True)
+
+    lemmas_idx, lemmas_char_idx, in_node, in_label_idx, out_node, out_label_idx, entity_indexs, truth_tags = zip(*data)
+
+    # lemmas, lengths, sentence_len = merge(lemmas_idx)
+    lemmas = lemmas_idx
+    lemmas_chars = None
+    in_nodes = None
+    in_labels = None
+    out_nodes = None
+    out_labels = None
+    entity_indexs = None
+    truth_tags = None
+
+    return lemmas, lemmas_chars, in_nodes, in_labels, out_nodes, out_labels, entity_indexs, truth_tags
 
 
 if __name__ == "__main__":
@@ -158,7 +164,9 @@ if __name__ == "__main__":
 
     train_set = get_dataset_from_instances(train_set, word_to_id, char_to_id, edge_to_id, options)
     dev_set = get_dataset_from_instances(dev_set, word_to_id, char_to_id, edge_to_id, options)
-    print(dev_set)
+    print(len(train_set))
+    print(len(dev_set))
+    print(train_set[0])
 
     #  Build dataloader of training set and development set
 
@@ -168,9 +176,14 @@ if __name__ == "__main__":
     # train_loader = data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True,
     #                                collate_fn=collate_fn, num_workers=0, drop_last=True)
     #
-    # dev_dataset = Dataset(dev_set)
-    # dev_loader = data.DataLoader(dataset=dev_dataset, batch_size=batch_size, shuffle=True,
-    #                              collate_fn=collate_fn, num_workers=0, drop_last=True)
+    dev_dataset = Dataset(dev_set)
+    dev_loader = data.DataLoader(dataset=dev_dataset, batch_size=batch_size, shuffle=True,
+                                 collate_fn=collate_fn, num_workers=0, drop_last=True)
+    with torch.no_grad():
+        for batch_idx, (lemmas, lemmas_chars, in_nodes, in_labels, out_nodes, out_labels, entity_indexs, truth_tags) in enumerate(dev_loader):
+            print(lemmas)
+            print(lemmas_chars)
+            break
 
 
 

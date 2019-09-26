@@ -1,6 +1,7 @@
 import re
 import json
 import codecs
+import torch
 
 
 def read_file(file_path):
@@ -111,6 +112,32 @@ def get_data_from_fof(options):
         entity_size = max(entity_size, cur_entity_size)
 
     return all_instances, len_words, len_in_nodes, len_out_nodes, entity_size
+
+
+def padding_3d(input_t, dim_0=0, dim_1=0, dim_2=0):
+    if dim_0 == 0:
+        dim_0 = len(input_t)
+    if dim_1 == 0:
+        dim_1 = max(len(input_t[i]) for i in input_t)
+    if dim_2 == 0:
+        for i in input_t:
+            dim_2 = max(dim_2, max(len(input_t[k]) for k in i))
+
+    res = torch.zeros(dim_0, dim_1, dim_2)
+
+    dim_0 = min(dim_0, len(input_t))
+
+    for i in range(dim_0):
+        temp_i = input_t[i]
+        new_dim_1 = dim_1
+        new_dim_1 = min(new_dim_1, len(temp_i))
+        for j in range(new_dim_1):
+            temp_j = temp_i[j]
+            new_dim_2 = dim_2
+            new_dim_2 = min(new_dim_2, len(temp_j))
+            res[i, j, :new_dim_2] = temp_j[:new_dim_2]
+
+    return res
 
 
 
