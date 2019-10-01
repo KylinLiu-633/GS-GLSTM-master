@@ -29,62 +29,83 @@ class Dataset(data.Dataset):
         self.num_total_seqs = len(self.data)
 
     def __getitem__(self, item):
-        lemmas_idx = self.data[item][0]
-        lemmas_char_idx = self.data[item][1]
-        in_node = self.data[item][2]
-        in_label_idx = self.data[item][3]
-        out_node = self.data[item][4]
-        out_label_idx = self.data[item][5]
-        entity_indexs = self.data[item][6]
-        truth_tags = self.data[item][7]
+        lemmas = self.data[item][0]
+        lemmas_idx = self.data[item][1]
+        lemmas_char_idx = self.data[item][2]
+        in_node = self.data[item][3]
+        in_label_idx = self.data[item][4]
+        out_node = self.data[item][5]
+        out_label_idx = self.data[item][6]
+        entity_indexs = self.data[item][7]
+        truth_tags = self.data[item][8]
 
-        return lemmas_idx, lemmas_char_idx, in_node, in_label_idx, out_node, out_label_idx, entity_indexs, truth_tags
+        return lemmas, lemmas_idx, lemmas_char_idx, in_node, in_label_idx, out_node, out_label_idx, entity_indexs, truth_tags
 
     def __len__(self):
         return self.num_total_seqs
 
 
 def collate_fn(data):
-    #  lemmas_idx, lemmas_char_idx, in_node, in_label_idx, out_node, out_label_idx, entity_indexs, truth_tags
+    #  lemmas, lemmas_idx, lemmas_char_idx, in_node, in_label_idx, out_node, out_label_idx, entity_indexs, truth_tags
+    #  count the number of nodes and char_nodes
     def merge(datas):
-        print("datas", datas)
+        # print("datas", datas)
         lengths = [len(x) for x in datas]
         character_ids = batch_to_ids(datas)
         embeddings = embedder(character_ids)
         input_datas = embeddings['elmo_representations'][0].double()
-        # sentence_len = len(input_datas[0][0])
         sentence_len = len(input_datas[0])
         return input_datas, lengths, sentence_len
 
-    def merge_lemma(datas):
-        character_ids = batch_to_ids(datas)
-        embeddings = embedder(character_ids)
-        input_datas = embeddings['elmo_representations'][0].double()
-        return input_datas
-
-    def merge_target(datas, sentence_len):
+    def merge_lemmas_id(datas, sequence_len=0):
         lengths = [len(x) for x in datas]
-        padded_seqs = torch.zeros(len(datas), sentence_len).long()
+        padded_seqs = torch.zeros(len(datas), sequence_len).long()
         for i, seq in enumerate(datas):
             end = lengths[i]
-            padded_seqs[i, :end] = seq[:end]
+            padded_seqs[i, :end] = torch.tensor(seq[:end])
+        padded_seqs = torch.unsqueeze(padded_seqs, 2)
         return padded_seqs
+
+    def get_mask_list(datas, batch, sequence_len=0, dim_3=0):
+        mask_list = []
+        for inst in datas:
+            mask = []
+            for item in inst:
+                mask.append([1 for _ in item])
+            mask_list.append(mask)
+        mask_list = padding_3d(mask_list, batch, sequence_len, dim_3)
+        return mask_list
 
     # data.sort(key=lambda x: len(x[0]), reverse=True)
 
-    lemmas_idx, lemmas_char_idx, in_node, in_label_idx, out_node, out_label_idx, entity_indexs, truth_tags = zip(*data)
+    lemmas, lemmas_idx, lemmas_char_idx, in_node, in_label_idx, out_node, out_label_idx, entity_indexs, truth_tags = zip(*data)
+    batch = len(lemmas)
+    lemmas, node_num, sentence_len = merge(lemmas)
+    lemmas_idx = merge_lemmas_id(lemmas_idx, sentence_len)
 
-    # lemmas, lengths, sentence_len = merge(lemmas_idx)
-    lemmas = lemmas_idx
-    lemmas_chars = None
-    in_nodes = None
-    in_labels = None
-    out_nodes = None
-    out_labels = None
-    entity_indexs = None
-    truth_tags = None
+    # get the mask array for in_node, out_node, and entity
+    in_node_mask = get_mask_list(in_node, batch, sentence_len)
+    out_node_mask = get_mask_list(out_node, batch, sentence_len)
+    entity_mask = get_mask_list(entity_indexs, batch)
 
-    return lemmas, lemmas_chars, in_nodes, in_labels, out_nodes, out_labels, entity_indexs, truth_tags
+    if lemmas_char_idx[0] is not None:
+        lemmas_chars = padding_3d(lemmas_char_idx)
+    else:
+        lemmas_chars = None
+    in_nodes = padding_3d(in_node)
+    in_labels = padding_3d(in_label_idx)
+    out_nodes = padding_3d(out_node)
+    out_labels = padding_3d(out_label_idx)
+    entity_indexs = padding_3d(entity_indexs)
+
+    assert in_node_mask.shape == in_nodes.shape
+    assert in_node_mask.shape == in_labels.shape
+    assert out_node_mask.shape == out_nodes.shape
+    assert out_node_mask.shape == out_labels.shape
+    assert entity_mask.shape == entity_indexs.shape
+
+    return node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes, in_labels, out_nodes, out_labels, entity_indexs, \
+           truth_tags, in_node_mask, out_node_mask, entity_mask
 
 
 if __name__ == "__main__":
@@ -110,6 +131,7 @@ if __name__ == "__main__":
 
     print("Configuration:")
     print(options)
+    options.word_vec_dim = 1024
 
     #  Save configuration to log files
 
@@ -164,9 +186,6 @@ if __name__ == "__main__":
 
     train_set = get_dataset_from_instances(train_set, word_to_id, char_to_id, edge_to_id, options)
     dev_set = get_dataset_from_instances(dev_set, word_to_id, char_to_id, edge_to_id, options)
-    print(len(train_set))
-    print(len(dev_set))
-    print(train_set[0])
 
     #  Build dataloader of training set and development set
 
@@ -180,9 +199,16 @@ if __name__ == "__main__":
     dev_loader = data.DataLoader(dataset=dev_dataset, batch_size=batch_size, shuffle=True,
                                  collate_fn=collate_fn, num_workers=0, drop_last=True)
     with torch.no_grad():
-        for batch_idx, (lemmas, lemmas_chars, in_nodes, in_labels, out_nodes, out_labels, entity_indexs, truth_tags) in enumerate(dev_loader):
-            print(lemmas)
-            print(lemmas_chars)
+        for batch_idx, (node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes, in_labels, out_nodes, out_labels,
+                        entity_indexs, truth_tags, in_node_mask, out_node_mask, entity_mask) in enumerate(dev_loader):
+            print(lemmas.shape)
+            print(lemmas_idx.shape)
+            if lemmas_chars is not None:
+                print(lemmas_chars.shape)
+            print(in_nodes.shape)
+            print(out_nodes.shape)
+            print(entity_indexs.shape)
+            print(lemmas_idx[0][:10])
             break
 
 

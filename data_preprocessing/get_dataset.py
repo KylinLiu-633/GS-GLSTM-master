@@ -114,7 +114,7 @@ def get_dataset_from_instances(all_instances, word_to_id, char_to_id, edge_to_id
         for edges in out_label:
             out_label_idx.append([edge_to_id[x] if edge_to_id.get(x) else edge_to_id.get("UNK") for x in edges])
 
-        instances.append([lemmas_idx, lemmas_char_idx, in_node, in_label_idx, out_node, out_label_idx,
+        instances.append([lemmas, lemmas_idx, lemmas_char_idx, in_node, in_label_idx, out_node, out_label_idx,
                           entity_indexs, truth_tags])
 
     return instances

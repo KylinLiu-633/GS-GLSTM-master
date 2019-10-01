@@ -34,7 +34,7 @@
     "max_char_per_word": 20,
 
     "attention_type": "hidden_embed",
-    "edgelabel_dim": 3,
+    "edge_label_dim": 3,
     "neighbor_vector_dim": 150,
     "fix_word_vec": true,
     "compress_input": true,

@@ -118,10 +118,10 @@ def padding_3d(input_t, dim_0=0, dim_1=0, dim_2=0):
     if dim_0 == 0:
         dim_0 = len(input_t)
     if dim_1 == 0:
-        dim_1 = max(len(input_t[i]) for i in input_t)
+        dim_1 = max(len(i) for i in input_t)
     if dim_2 == 0:
         for i in input_t:
-            dim_2 = max(dim_2, max(len(input_t[k]) for k in i))
+            dim_2 = max(dim_2, max(len(k) for k in i))
 
     res = torch.zeros(dim_0, dim_1, dim_2)
 
@@ -135,7 +135,7 @@ def padding_3d(input_t, dim_0=0, dim_1=0, dim_2=0):
             temp_j = temp_i[j]
             new_dim_2 = dim_2
             new_dim_2 = min(new_dim_2, len(temp_j))
-            res[i, j, :new_dim_2] = temp_j[:new_dim_2]
+            res[i, j, :new_dim_2] = torch.tensor(temp_j[:new_dim_2])
 
     return res
 
