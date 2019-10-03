@@ -211,16 +211,19 @@ if __name__ == "__main__":
     _model = GsGLstm(options)
     _model = _model.to(device)
 
-
     with torch.no_grad():
         for batch_idx, (node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes, in_labels, out_nodes, out_labels,
                         entity_indexs, truth_tags, in_node_mask, out_node_mask, entity_mask) in enumerate(dev_loader):
             if batch_idx > 0:
                 break
-            graph_rep, node_cell, node_hidden = _model(node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes, in_labels,
-                                                       out_nodes, out_labels, entity_indexs, truth_tags,
-                                                       in_node_mask, out_node_mask, entity_mask, options)
-            print(graph_rep, node_cell, node_hidden)
+            graph_rep, word_rep, graph_hidden, graph_cell = _model(node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes,
+                                                                   in_labels, out_nodes, out_labels, entity_indexs,
+                                                                   truth_tags,in_node_mask, out_node_mask, entity_mask,
+                                                                   options)
+            print(graph_rep.shape)
+            print(word_rep.shape)
+            print(graph_hidden.shape)
+            print(graph_cell.shape)
 
             break
 
