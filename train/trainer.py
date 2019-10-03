@@ -9,6 +9,7 @@ from torch.utils import data
 from utils import get_data_from_fof, get_data_from_file, padding_3d
 from data_preprocessing import get_dataset_from_instances, collect_data
 from data_preprocessing import word_mapping, char_mapping, edge_mapping
+from network import GsGLstm
 
 
 from allennlp.modules.elmo import Elmo, batch_to_ids
@@ -92,10 +93,10 @@ def collate_fn(data):
         lemmas_chars = padding_3d(lemmas_char_idx)
     else:
         lemmas_chars = None
-    in_nodes = padding_3d(in_node)
-    in_labels = padding_3d(in_label_idx)
-    out_nodes = padding_3d(out_node)
-    out_labels = padding_3d(out_label_idx)
+    in_nodes = padding_3d(in_node).long()
+    in_labels = padding_3d(in_label_idx).long()
+    out_nodes = padding_3d(out_node).long()
+    out_labels = padding_3d(out_label_idx).long()
     entity_indexs = padding_3d(entity_indexs)
 
     assert in_node_mask.shape == in_nodes.shape
@@ -109,6 +110,10 @@ def collate_fn(data):
 
 
 if __name__ == "__main__":
+
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+    torch.set_default_dtype(torch.double)
 
     # Get configuration
 
@@ -184,6 +189,10 @@ if __name__ == "__main__":
     dict_char, char_to_id, id_to_char = char_mapping(chars)
     dict_edge, edge_to_id, id_to_edge = edge_mapping(edges)
 
+    options.word_to_id = word_to_id
+    options.char_to_id = char_to_id
+    options.edge_to_id = edge_to_id
+
     train_set = get_dataset_from_instances(train_set, word_to_id, char_to_id, edge_to_id, options)
     dev_set = get_dataset_from_instances(dev_set, word_to_id, char_to_id, edge_to_id, options)
 
@@ -198,17 +207,21 @@ if __name__ == "__main__":
     dev_dataset = Dataset(dev_set)
     dev_loader = data.DataLoader(dataset=dev_dataset, batch_size=batch_size, shuffle=True,
                                  collate_fn=collate_fn, num_workers=0, drop_last=True)
+
+    _model = GsGLstm(options)
+    _model = _model.to(device)
+
+
     with torch.no_grad():
         for batch_idx, (node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes, in_labels, out_nodes, out_labels,
                         entity_indexs, truth_tags, in_node_mask, out_node_mask, entity_mask) in enumerate(dev_loader):
-            print(lemmas.shape)
-            print(lemmas_idx.shape)
-            if lemmas_chars is not None:
-                print(lemmas_chars.shape)
-            print(in_nodes.shape)
-            print(out_nodes.shape)
-            print(entity_indexs.shape)
-            print(lemmas_idx[0][:10])
+            if batch_idx > 0:
+                break
+            graph_rep, node_cell, node_hidden = _model(node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes, in_labels,
+                                                       out_nodes, out_labels, entity_indexs, truth_tags,
+                                                       in_node_mask, out_node_mask, entity_mask, options)
+            print(graph_rep, node_cell, node_hidden)
+
             break
 
 

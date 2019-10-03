@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as Func
-import torch.nn.parameter as Param
 
 
 class GsEmbedder(nn.Module):
@@ -121,39 +120,39 @@ class GsGLstm(nn.Module):
         self.in_node_mask = torch.zeros(self.batch, self.max_node_num, self.max_in_node_num)
         self.out_node_mask = torch.zeros(self.batch, self.max_node_num, self.max_out_node_num)
 
-        self.w_in_i_gate = Param(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
-        self.u_in_i_gate = Param(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
-        self.w_out_i_gate = Param(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
-        self.u_out_i_gate = Param(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
-        self.b_i_gate = Param(torch.Tensor(self.g_hidden_dim))
+        self.w_in_i_gate = nn.Parameter(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
+        self.u_in_i_gate = nn.Parameter(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
+        self.w_out_i_gate = nn.Parameter(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
+        self.u_out_i_gate = nn.Parameter(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
+        self.b_i_gate = nn.Parameter(torch.Tensor(self.g_hidden_dim))
 
-        self.w_in_o_gate = Param(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
-        self.u_in_o_gate = Param(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
-        self.w_out_o_gate = Param(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
-        self.u_out_o_gate = Param(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
-        self.b_o_gate = Param(torch.Tensor(self.g_hidden_dim))
+        self.w_in_o_gate = nn.Parameter(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
+        self.u_in_o_gate = nn.Parameter(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
+        self.w_out_o_gate = nn.Parameter(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
+        self.u_out_o_gate = nn.Parameter(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
+        self.b_o_gate = nn.Parameter(torch.Tensor(self.g_hidden_dim))
 
-        self.w_in_f_gate = Param(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
-        self.u_in_f_gate = Param(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
-        self.w_out_f_gate = Param(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
-        self.u_out_f_gate = Param(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
-        self.b_f_gate = Param(torch.Tensor(self.g_hidden_dim))
+        self.w_in_f_gate = nn.Parameter(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
+        self.u_in_f_gate = nn.Parameter(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
+        self.w_out_f_gate = nn.Parameter(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
+        self.u_out_f_gate = nn.Parameter(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
+        self.b_f_gate = nn.Parameter(torch.Tensor(self.g_hidden_dim))
 
-        self.w_in_cell = Param(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
-        self.u_in_cell = Param(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
-        self.w_out_cell = Param(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
-        self.u_out_cell = Param(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
-        self.b_cell = Param(torch.Tensor(self.g_hidden_dim))
+        self.w_in_cell = nn.Parameter(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
+        self.u_in_cell = nn.Parameter(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
+        self.w_out_cell = nn.Parameter(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
+        self.u_out_cell = nn.Parameter(torch.Tensor(self.g_hidden_dim, self.g_hidden_dim))
+        self.b_cell = nn.Parameter(torch.Tensor(self.g_hidden_dim))
 
-        self.w_edge = Param(torch.Tensor(self.word_vec_dim+self.edge_dim, self.g_hidden_dim))
-        self.b_edge = Param(torch.Tensor(self.g_hidden_dim))
+        self.w_edge = nn.Parameter(torch.Tensor(self.g_hidden_dim+self.edge_label_dim, self.g_hidden_dim))
+        self.b_edge = nn.Parameter(torch.Tensor(self.g_hidden_dim))
 
-        self.node_hidden = Param(torch.Tensor(self.batch, self.max_node_num, self.g_hidden_dim))
-        self.cell = Param(torch.Tensor(self.batch, self.max_node_num, self.g_hidden_dim))
+        self.node_hidden = nn.Parameter(torch.Tensor(self.batch, self.max_node_num, self.g_hidden_dim))
+        self.cell = nn.Parameter(torch.Tensor(self.batch, self.max_node_num, self.g_hidden_dim))
 
         # The output of word_embedding is word representation for nodes, where each node only includes one word
-        self.word_embedding = nn.Embedding(self.word_vec_dim, self.word_vec_dim / 4)  # 1024 => 256
-        self.edge_embedding = nn.Embedding(self.edge_dim, self.edge_label_dim)  # 113 => 3
+        self.word_embedding = nn.Linear(self.word_vec_dim, self.g_hidden_dim)  # 1024 => 150
+        self.edge_embedding = nn.Embedding(self.edge_dim, self.edge_label_dim)  # 114 => 3
         self.node_mask = None  # (batch, max_node_size)
         self.encoder = None
         self.decoder = None
@@ -176,53 +175,46 @@ class GsGLstm(nn.Module):
                                                                   out_labels, out_node_mask)
 
         # get graph_representation
-        self._get_graph_rep(in_nodes, in_node_mask, out_nodes, out_node_mask, in_node_rep, out_node_rep)
+        graph_rep, graph_cell, graph_hidden = self._get_graph_rep(in_nodes, in_node_mask, out_nodes, out_node_mask, in_node_rep, out_node_rep)
 
+        # self.graph_rep = graph_rep
+        # self.node_rep = word_rep
+        # self.graph_hidden = graph_hidden
+        # self.graph_cell = graph_cell
 
-        self.graph_rep = None
-        self.node_rep = None
-        self.graph_hidden = None
-        self.graph_cell = None
-
-        return None
+        return graph_rep, word_rep, graph_hidden, graph_cell
 
     def _get_embedding(self, lemmas, in_nodes, in_labels, in_node_mask, out_nodes,  out_labels, out_node_mask):
         # the representation of words
         word_rep = self.word_embedding(lemmas)
-        # (8, 137, 256) * (8, 137, 1)
+        seq_len = len(lemmas[0])
 
         # Still working on
-        word_rep = torch.masked_select(word_rep, self.node_mask)
-        word_rep = torch.squeeze(word_rep)  # (8, 137, 256)
-
-        # the representation of in_edges
-        seq_len = len(lemmas[0])
-        in_edge_input = torch.zeros(self.batch, seq_len, self.edge_dim)
+        temp = torch.zeros(self.batch, self.max_node_num, self.g_hidden_dim)
         for i in range(self.batch):
-            in_edge_input[i].scatter_(1, in_labels[i], 1)
-        in_edge_input = self.edge_embedding(in_edge_input)  # (8, 137, 113) => (8, 137, 3)
+            for j in range(seq_len):
+                temp[i, j] = word_rep[i, j]
+        word_rep = temp  # (8, 450, 150)
 
-        # the representation of out_edges
-        out_edge_input = torch.zeros(self.batch, seq_len, self.edge_dim)
-        for i in range(self.batch):
-            out_edge_input[i].scatter_(1, out_labels[i], 1)
-        out_edge_input = self.edge_embedding(out_edge_input)  # (8, 137, 113) => (8, 137, 3)
+        # the representation of in_edges, out_edges
+        in_edge_input = self.edge_embedding(in_labels)  # (8, 137, 19, 50)
+        out_edge_input = self.edge_embedding(out_labels)
 
-        in_node_input = self._get_neighbour_rep(word_rep, in_nodes)
-        out_node_input = self._get_neighbour_rep(word_rep, out_nodes)
+        in_node_input = self._get_neighbour_rep(word_rep, in_nodes, seq_len)  # (8, 137, 19, 150)
+        out_node_input = self._get_neighbour_rep(word_rep, out_nodes, seq_len)
 
-        in_node_rep = torch.cat((in_edge_input, in_node_input), dim=-1)
-        in_node_rep = torch.matmul(in_node_rep, torch.unsqueeze(in_node_mask, -1))
+        in_node_rep = torch.cat((in_edge_input, in_node_input), dim=-1)  # (8, 137, 19, 200)
+        in_node_rep = torch.matmul(in_node_rep.transpose(-1, -2), torch.unsqueeze(in_node_mask, -1))
         in_node_rep = in_node_rep.sum(-1)
 
         out_node_rep = torch.cat((out_edge_input, out_node_input), dim=-1)
-        out_node_rep = torch.matmul(out_node_rep, torch.unsqueeze(out_node_mask, -1))
+        out_node_rep = torch.matmul(out_node_rep.transpose(-1, -2), torch.unsqueeze(out_node_mask, -1))
         out_node_rep = out_node_rep.sum(-1)
 
-        in_node_rep = torch.matmul(in_node_rep.view((-1, self.word_vec_dim + self.edge_dim)), self.w_edge) + self.b_edge
+        in_node_rep = torch.matmul(in_node_rep.view((-1, self.g_hidden_dim + self.edge_label_dim)), self.w_edge) + self.b_edge
         in_node_rep = Func.tanh(in_node_rep)
 
-        out_node_rep = torch.matmul(out_node_rep.view((-1, self.word_vec_dim + self.edge_dim)), self.w_edge) + self.b_edge
+        out_node_rep = torch.matmul(out_node_rep.view((-1, self.g_hidden_dim + self.edge_label_dim)), self.w_edge) + self.b_edge
         out_node_rep = Func.tanh(out_node_rep)
 
         return word_rep, in_node_rep, out_node_rep
@@ -230,12 +222,15 @@ class GsGLstm(nn.Module):
     def _get_graph_rep(self, in_nodes, in_node_mask, out_nodes, out_node_mask, in_node_rep, out_node_rep):
 
         graph_rep = []
-        node_cell = []
-
+        node_cell = None
+        node_hidden = None
 
         for layer_idx in range(self.layer_num):
+
             in_edge_hidden = self._get_neighbour_rep(self.node_hidden, in_nodes)
             # (batch, num_nodes, num_neighbour, graph_hidden_dim) * (batch, max_node_num, max_in_node_num, 1)
+            print(in_edge_hidden.shape)
+            print(in_node_mask.shape)
             in_edge_hidden = torch.matmul(in_edge_hidden.transpose(-1, -2), torch.unsqueeze(in_node_mask, dim=-1))
             in_edge_hidden = torch.squeeze(in_edge_hidden)
             in_edge_hidden = torch.matmul(in_edge_hidden.transpose(-1, -2), torch.unsqueeze(self.node_mask, dim=-1))
@@ -281,21 +276,22 @@ class GsGLstm(nn.Module):
 
             graph_rep.append(node_hidden)
 
-        self.node_cell = node_cell
+        return graph_rep, node_cell, node_hidden
 
-    def _get_neighbour_rep(self, node_hidden, neighbour_index):
+    def _get_neighbour_rep(self, node_hidden, neighbour_index, seq_len=0):
         """
         :param node_hidden: in the shape of (batch, num_nodes, graph_hidden_dim)
         :param neighbour_index: in the shape of (batch, num_nodes, num_neighbours)
         :return: the representation in the shape of (batch, num_nodes, num_neighbour, graph_hidden_dim)
         """
-
+        if seq_len == 0:
+            seq_len = self.max_node_num
         num_neighbours = len(neighbour_index[0][0])
         neighbour_index = neighbour_index.long()
-        rep = torch.zeros(self.batch, self.max_node_num, num_neighbours, self.g_hidden_dim)
+        rep = torch.zeros(self.batch, seq_len, num_neighbours, self.g_hidden_dim)
 
         for i in range(self.batch):
-            for j in range(self.max_node_num):
+            for j in range(len(neighbour_index[0])):
                 for k in range(num_neighbours):
                     rep[i, j, k] = node_hidden[i][neighbour_index[i][j][k]]
 

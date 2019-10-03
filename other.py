@@ -37,14 +37,20 @@ b = torch.tensor([[[0,1,2,3,4,0], [1,1,1,3,4,15], [1,2,2,3,4,2], [1,1,2,3,4,3], 
                   [[0,1,2,3,4,2], [1,3,1,3,4,13], [1,2,2,3,4,3], [1,1,2,3,4,2], [0,1,2,4,4,1]]])
 
 d = torch.rand(8, 137, 256)
-e = torch.zeros(8, 450, 1)
+e = torch.zeros(8, 450)
 for b in range(8):
-    for i in range(6):
+    for i in range(137):
         e[b][i] = 1
+res = torch.zeros(e.shape)
+for b in range(8):
+    for i in range(137):
+        res[b, i] = d[b, i]
 
-res = torch.masked_select(d, e)
+print(e.shape)
+
 print(res.shape)
-print(res[0])
+print(res[0][0])
+print(res[0][-1])
 
 
 # (batch, num_nodes, num_neighbour, graph_hidden_dim) * (batch, max_node_num, max_in_node_num, 1)
