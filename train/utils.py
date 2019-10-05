@@ -123,7 +123,7 @@ def padding_3d(input_t, dim_0=0, dim_1=0, dim_2=0):
         for i in input_t:
             dim_2 = max(dim_2, max(len(k) for k in i))
 
-    res = torch.zeros(dim_0, dim_1, dim_2)
+    res = torch.full((dim_0, dim_1, dim_2), 0.)
 
     dim_0 = min(dim_0, len(input_t))
 

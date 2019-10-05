@@ -3,8 +3,10 @@ import sys
 import json
 import os
 import random
+import time
 
 import torch
+import torch.optim as optim
 from torch.utils import data
 from utils import get_data_from_fof, get_data_from_file, padding_3d
 from data_preprocessing import get_dataset_from_instances, collect_data
@@ -40,7 +42,8 @@ class Dataset(data.Dataset):
         entity_indexs = self.data[item][7]
         truth_tags = self.data[item][8]
 
-        return lemmas, lemmas_idx, lemmas_char_idx, in_node, in_label_idx, out_node, out_label_idx, entity_indexs, truth_tags
+        return lemmas, lemmas_idx, lemmas_char_idx, in_node, in_label_idx, \
+               out_node, out_label_idx, entity_indexs, truth_tags
 
     def __len__(self):
         return self.num_total_seqs
@@ -87,7 +90,7 @@ def collate_fn(data):
     # get the mask array for in_node, out_node, and entity
     in_node_mask = get_mask_list(in_node, batch, sentence_len)
     out_node_mask = get_mask_list(out_node, batch, sentence_len)
-    entity_mask = get_mask_list(entity_indexs, batch)
+    entity_mask = get_mask_list(entity_indexs, batch, 3, 5)
 
     if lemmas_char_idx[0] is not None:
         lemmas_chars = padding_3d(lemmas_char_idx)
@@ -97,7 +100,7 @@ def collate_fn(data):
     in_labels = padding_3d(in_label_idx).long()
     out_nodes = padding_3d(out_node).long()
     out_labels = padding_3d(out_label_idx).long()
-    entity_indexs = padding_3d(entity_indexs)
+    entity_indexs = padding_3d(entity_indexs, batch, 3, 5).long()
 
     assert in_node_mask.shape == in_nodes.shape
     assert in_node_mask.shape == in_labels.shape
@@ -116,9 +119,9 @@ if __name__ == "__main__":
     torch.set_default_dtype(torch.double)
 
     # Get configuration
-
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_path", type=str, default="config_file_song.json", help="The file path of configuration")
+    parser.add_argument("--config_path", type=str, default="config_file_song.json",
+                        help="The file path of configuration")
 
     options, unparsed = parser.parse_known_args()
 
@@ -148,11 +151,19 @@ if __name__ == "__main__":
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
+    model_path = model_dir + "/song.{}".format(options.suffix) + ".model"
+
     log_file_path = log_dir + "/song.{}".format(options.suffix) + ".log"
     print("The path of log file: " + log_file_path)
     log_file = open(log_file_path, "wt")
     log_file.write(str(options) + "\n")
     log_file.flush()
+
+    result_file_path = log_dir + "/song.{}".format(options.suffix) + "_dev_result.txt"
+    print("The path of result file: " + result_file_path)
+    result_file = open(result_file_path, "wt")
+    result_file.write(str(options) + "\n")
+    result_file.flush()
 
     config_dict = vars(options)
     with open(log_dir + "/song.{}".format(options.suffix) + "_config.json", "w") as f_out:
@@ -162,9 +173,9 @@ if __name__ == "__main__":
 
     print("Loading training set...")
     if options.infile_format == "fof":
-        train_set, len_node, len_in_node, len_out_node, entity_type = get_data_from_fof(options)
+        train_set, len_node, len_in_node, len_out_node, entity_size = get_data_from_fof(options)
     else:
-        train_set, len_node, len_in_node, len_out_node, entity_type = get_data_from_file(options.train_path, options)
+        train_set, len_node, len_in_node, len_out_node, entity_size = get_data_from_file(options.train_path, options)
 
     random.shuffle(train_set)
     dev_set = train_set[:200]
@@ -176,7 +187,7 @@ if __name__ == "__main__":
     print("Number of node: " + str(len_node) + ", while max allowed is " + str(options.max_node_num))
     print("Number of parent node: " + str(len_in_node) + ", truncated to " + str(options.max_in_node_num))
     print("Number of child node: " + str(len_out_node) + ", truncated to " + str(options.max_out_node_num))
-    print("Number of entity type: " + str(entity_type) + ", truncated to " + str(options.entity_type))
+    print("The entity size: " + str(entity_size) + ", truncated to " + str(options.max_entity_size))
 
     # Build dictionary and mapping of words, characters, edges
 
@@ -193,6 +204,11 @@ if __name__ == "__main__":
     options.char_to_id = char_to_id
     options.edge_to_id = edge_to_id
 
+    if options.binary_classification:
+        options.relation_num = 2
+    else:
+        options.relation_num = 6
+
     train_set = get_dataset_from_instances(train_set, word_to_id, char_to_id, edge_to_id, options)
     dev_set = get_dataset_from_instances(dev_set, word_to_id, char_to_id, edge_to_id, options)
 
@@ -200,32 +216,193 @@ if __name__ == "__main__":
 
     batch_size = options.batch_size
 
-    # train_dataset = Dataset(train_set)
-    # train_loader = data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True,
-    #                                collate_fn=collate_fn, num_workers=0, drop_last=True)
-    #
+    train_dataset = Dataset(train_set)
+    train_loader = data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True,
+                                   collate_fn=collate_fn, num_workers=0, drop_last=True)
+
     dev_dataset = Dataset(dev_set)
     dev_loader = data.DataLoader(dataset=dev_dataset, batch_size=batch_size, shuffle=True,
                                  collate_fn=collate_fn, num_workers=0, drop_last=True)
 
-    _model = GsGLstm(options)
-    _model = _model.to(device)
+    if options.training:
 
-    with torch.no_grad():
-        for batch_idx, (node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes, in_labels, out_nodes, out_labels,
-                        entity_indexs, truth_tags, in_node_mask, out_node_mask, entity_mask) in enumerate(dev_loader):
-            if batch_idx > 0:
+        _model = GsGLstm(options)
+        _model = _model.to(device)
+
+        optimizer = optim.Adam(_model.parameters(), lr=options.learning_rate)
+        c_loss = torch.nn.CrossEntropyLoss()
+
+        with torch.no_grad():
+            for batch_idx, (node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes, in_labels, out_nodes, out_labels,
+                            entity_indexs, truth_tags, in_node_mask, out_node_mask, entity_mask) in enumerate(dev_loader):
+                result = _model(node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes,in_labels, out_nodes, out_labels,
+                                entity_indexs,truth_tags,in_node_mask, out_node_mask, entity_mask, options)
+                print("Model set well...")
                 break
-            graph_rep, word_rep, graph_hidden, graph_cell = _model(node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes,
-                                                                   in_labels, out_nodes, out_labels, entity_indexs,
-                                                                   truth_tags,in_node_mask, out_node_mask, entity_mask,
-                                                                   options)
-            print(graph_rep.shape)
-            print(word_rep.shape)
-            print(graph_hidden.shape)
-            print(graph_cell.shape)
+        plot_losses = []
+        max_f = -1.
+        max_epoch = 0
+        best_accu = 0.
 
-            break
+        for epoch in range(options.max_epochs):
+            # if epoch > 1:
+            #     break
+            start_t = time.time()
+            print("Start epoch {}...".format(epoch))
+            loss_total = 0.
+
+            for batch_idx, (node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes, in_labels, out_nodes, out_labels,
+                            entity_indexs, truth_tags, in_node_mask, out_node_mask, entity_mask) in enumerate(train_loader):
+                # if batch_idx > 5:
+                #     break
+                print("Running in train set epoch {} batch {}".format(epoch, batch_idx))
+                result = _model(node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes,in_labels, out_nodes, out_labels,
+                                entity_indexs,truth_tags,in_node_mask, out_node_mask, entity_mask, options)
+
+                truth_tags = torch.tensor(truth_tags).long()
+
+                loss = c_loss(result, truth_tags)
+                loss_total += loss.item()
+                print("loss", loss.item())
+                loss.backward(retain_graph=True)
+                optimizer.step()
+                optimizer.zero_grad()
+                if batch_idx % 40 == 0 and batch_idx is not 0:
+                    if epoch > 5:
+                        plot_losses.append(loss.detach().cpu().numpy())
+                    loss_total /= 40
+                    log_file.write("In batch {} the average error is : {}\n".format(batch_idx, loss_total))
+                    log_file.flush()
+                    sys.stdout.flush()
+                    print("In batch {} the average error is : {}".format(batch_idx, loss_total))
+                    loss_total = 0.
+            print("Training time:", int((time.time() - start_t) / 60), "m",
+                  int((time.time() - start_t) % 60), "s")
+            predictions = []
+            dev_start_t = time.time()
+            dev_correct = 0.
+            dev_total = 0.
+            loss_total = 0.
+
+            with torch.no_grad():
+                batch_num = 0
+                for batch_idx, (node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes, in_labels, out_nodes, out_labels,
+                                entity_indexs, truth_tags, in_node_mask, out_node_mask, entity_mask) in enumerate(dev_loader):
+                    # if batch_idx > 1:
+                    #     break
+                    result = _model(node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes, in_labels, out_nodes,
+                                    out_labels,
+                                    entity_indexs, truth_tags, in_node_mask, out_node_mask, entity_mask, options)
+                    # print(result)
+                    truth_tags = torch.tensor(truth_tags).long()
+                    loss_total += c_loss(result, truth_tags).item()
+                    res = torch.argmax(result, -1)
+
+                    for b in range(batch_size):
+                        dev_correct += (1.0 if torch.equal(res[b], truth_tags[b]) else 0.)
+                        new_line = " ".join([str(truth_tags[b]), str(res[b])])
+                        predictions.append(new_line)
+
+                    dev_total += batch_size
+                    batch_num = batch_idx
+
+                dev_accu = dev_correct / dev_total
+                print("The loss of development set: {}\n".format(loss_total/batch_num))
+                log_file.write("The loss of development set: {}\n".format(loss_total/batch_num))
+                print("The accuracy of development set: {}, correct: {} in total {}.\n"
+                      .format(dev_correct/dev_total, dev_correct, dev_total))
+                log_file.write(("The accuracy of development set: {}, correct: {} in total {}.\n"
+                                .format(dev_accu, dev_correct, dev_total)))
+                log_file.flush()
+                if best_accu < dev_accu:
+                    max_epoch = epoch
+                    if len(predictions) > 0:
+                        result_file.write("\n".join(predictions))
+                        result_file.flush()
+                        best_accu = dev_accu
+                        print("Saving model to the disk...")
+                        torch.save(_model.state_dict(), model_path)
+
+            if epoch - max_epoch > 20:
+                break
+
+    if options.testing:
+        print("Loading testing set...")
+        options.in_path = "../data/dev_list_0"
+        result_file_path = log_dir + "/song.{}".format(options.suffix) + "_test_result.txt"
+        result_file = open(result_file_path, "wt")
+        result_file.write(str(model_path) + "\n")
+        result_file.flush()
+
+        if options.infile_format == "fof":
+            test_set, len_node, len_in_node, len_out_node, entity_size = get_data_from_fof(options)
+        else:
+            test_set, len_node, len_in_node, len_out_node, entity_size = get_data_from_file(options.train_path,
+                                                                                             options)
+
+        test_set = get_dataset_from_instances(test_set, word_to_id, char_to_id, edge_to_id, options)
+        test_dataset = Dataset(dev_set)
+        test_loader = data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=True,
+                                     collate_fn=collate_fn, num_workers=0, drop_last=True)
+
+        c_loss = torch.nn.CrossEntropyLoss()
+
+        _model = GsGLstm(options)
+        _model.load_state_dict(torch.load(model_path))
+        _model = _model.to(device)
+        _model = _model.eval()
+
+        predictions = []
+        start_t = time.time()
+        dev_correct = 0.
+        dev_total = 0.
+        loss_total = 0.
+
+        with torch.no_grad():
+            batch_num = 0
+            for batch_idx, (node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes, in_labels, out_nodes, out_labels,
+                            entity_indexs, truth_tags, in_node_mask, out_node_mask, entity_mask) in enumerate(test_loader):
+                # if batch_idx > 1:
+                #     break
+                result = _model(node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes,
+                                in_labels, out_nodes, out_labels, entity_indexs,
+                                truth_tags, in_node_mask, out_node_mask, entity_mask,
+                                options)
+                # print(result)
+                truth_tags = torch.tensor(truth_tags).long()
+                loss_total += c_loss(result, truth_tags).item()
+                res = torch.argmax(result, -1)
+
+                for b in range(batch_size):
+                    dev_correct += (1.0 if torch.equal(res[b], truth_tags[b]) else 0.)
+                    new_line = " ".join([str(truth_tags[b]), str(res[b])])
+                    predictions.append(new_line)
+
+                dev_total += batch_size
+                batch_num = batch_idx
+
+            dev_accu = dev_correct / dev_total
+            print("The loss of test set: {}\n".format(loss_total / batch_num))
+            log_file.write("The loss of test set: {}\n".format(loss_total / batch_num))
+            print("The accuracy of test set: {}, correct: {} in total {}.\n"
+                  .format(dev_correct / dev_total, dev_correct, dev_total))
+            log_file.write(("The accuracy of test set: {}, correct: {} in total {}.\n"
+                            .format(dev_accu, dev_correct, dev_total)))
+            log_file.flush()
+            if len(predictions) > 0:
+                result_file.write("\n".join(predictions))
+                result_file.flush()
+            print("Testing time:", int((time.time() - start_t) / 60), "m",
+                  int((time.time() - start_t) % 60), "s")
+
+
+
+
+
+
+
+
+
 
 
 

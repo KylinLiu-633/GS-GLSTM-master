@@ -12,7 +12,7 @@
     "only_single_sent": false,
 
     "batch_size": 8,
-    "gslstm_layer_num": 5,
+    "gslstm_layer_num": 1,
     "max_node_num": 450,
     "max_in_node_num": 45,
     "max_out_node_num": 45,
@@ -41,5 +41,7 @@
     "compress_input_dim": 100,
 
     "config_path": "config_file_song.json",
-    "generate_config": false
+    "generate_config": false,
+    "training": true,
+    "testing": true
 }
