@@ -5,7 +5,7 @@ import numpy as np
 
 
 
-class GsGLstm(nn.Module):
+class GsGLstmL(nn.Module):
     """
     Args:
 
@@ -57,7 +57,7 @@ class GsGLstm(nn.Module):
     """
 
     def __init__(self, options):
-        super(GsGLstm, self).__init__()
+        super(GsGLstmL, self).__init__()
         self.word_to_id = options.word_to_id
         self.edge_to_id = options.edge_to_id
         self.char_to_id = options.char_to_id
@@ -91,29 +91,29 @@ class GsGLstm(nn.Module):
         self.in_node_mask = torch.zeros(self.batch, self.max_node_num, self.max_in_node_num)
         self.out_node_mask = torch.zeros(self.batch, self.max_node_num, self.max_out_node_num)
 
-        self.w_in_i_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.max_node_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.u_in_i_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.max_node_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.w_out_i_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.max_node_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.u_out_i_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.max_node_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.b_i_gate = nn.Parameter(torch.zeros(self.max_node_num * self.batch, self.g_hidden_dim))
+        self.w_in_i_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.u_in_i_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.w_out_i_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.u_out_i_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.b_i_gate = nn.Parameter(torch.zeros(self.layer_num, self.g_hidden_dim))
 
-        self.w_in_o_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.max_node_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.u_in_o_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.max_node_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.w_out_o_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.max_node_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.u_out_o_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.max_node_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.b_o_gate = nn.Parameter(torch.zeros(self.max_node_num * self.batch, self.g_hidden_dim))
+        self.w_in_o_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.u_in_o_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.w_out_o_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.u_out_o_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.b_o_gate = nn.Parameter(torch.zeros(self.layer_num, self.g_hidden_dim))
 
-        self.w_in_f_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.max_node_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.u_in_f_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.max_node_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.w_out_f_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.max_node_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.u_out_f_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.max_node_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.b_f_gate = nn.Parameter(torch.zeros(self.max_node_num * self.batch, self.g_hidden_dim))
+        self.w_in_f_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.u_in_f_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.w_out_f_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.u_out_f_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.b_f_gate = nn.Parameter(torch.zeros(self.layer_num, self.g_hidden_dim))
 
-        self.w_in_cell = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.max_node_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.u_in_cell = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.max_node_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.w_out_cell = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.max_node_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.u_out_cell = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.max_node_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.b_cell = nn.Parameter(torch.zeros(self.max_node_num * self.batch, self.g_hidden_dim))
+        self.w_in_cell = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.u_in_cell = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.w_out_cell = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.u_out_cell = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.b_cell = nn.Parameter(torch.zeros(self.layer_num, self.g_hidden_dim))
 
         self.edge_rep = nn.Linear(self.g_hidden_dim + self.edge_label_dim, self.g_hidden_dim)
 
@@ -241,26 +241,26 @@ class GsGLstm(nn.Module):
             out_edge_hidden = out_edge_hidden.sum(-2)
             prev_out_edge_hidden = out_edge_hidden.view((self.batch, self.max_node_num, self.g_hidden_dim))
 
-            edge_i_gate = self.active(unit_mul(in_node_rep, self.w_in_i_gate)
-                                      + unit_mul(prev_in_edge_hidden, self.u_in_i_gate)
-                                      + unit_mul(out_node_rep, self.w_out_i_gate)
-                                      + unit_mul(prev_out_edge_hidden, self.u_out_i_gate)
-                                      + self.b_i_gate)
-            edge_o_gate = self.active(unit_mul(in_node_rep, self.w_in_o_gate)
-                                       + unit_mul(prev_in_edge_hidden, self.u_in_o_gate)
-                                       + unit_mul(out_node_rep, self.w_out_o_gate)
-                                       + unit_mul(prev_out_edge_hidden, self.u_out_o_gate)
-                                       + self.b_o_gate)
-            edge_f_gate = self.active(unit_mul(in_node_rep, self.w_in_f_gate)
-                                       + unit_mul(prev_in_edge_hidden, self.u_in_f_gate)
-                                       + unit_mul(out_node_rep, self.w_out_o_gate)
-                                       + unit_mul(prev_out_edge_hidden, self.u_out_f_gate)
-                                       + self.b_f_gate)
-            edge_cell_input = self.active(unit_mul(in_node_rep, self.w_in_cell)
-                                          + unit_mul(prev_in_edge_hidden, self.u_in_cell)
-                                          + unit_mul(out_node_rep, self.w_out_cell)
-                                          + unit_mul(prev_out_edge_hidden, self.u_out_cell)
-                                          + self.b_cell)
+            edge_i_gate = self.active(torch.matmul(in_node_rep, self.w_in_i_gate[layer_idx])
+                                      + torch.matmul(prev_in_edge_hidden, self.u_in_i_gate[layer_idx])
+                                      + torch.matmul(out_node_rep, self.w_out_i_gate[layer_idx])
+                                      + torch.matmul(prev_out_edge_hidden, self.u_out_i_gate[layer_idx])
+                                      + self.b_i_gate[layer_idx])
+            edge_o_gate = self.active(torch.matmul(in_node_rep, self.w_in_o_gate[layer_idx])
+                                       + torch.matmul(prev_in_edge_hidden, self.u_in_o_gate[layer_idx])
+                                       + torch.matmul(out_node_rep, self.w_out_o_gate[layer_idx])
+                                       + torch.matmul(prev_out_edge_hidden, self.u_out_o_gate[layer_idx])
+                                       + self.b_o_gate[layer_idx])
+            edge_f_gate = self.active(torch.matmul(in_node_rep, self.w_in_f_gate[layer_idx])
+                                       + torch.matmul(prev_in_edge_hidden, self.u_in_f_gate[layer_idx])
+                                       + torch.matmul(out_node_rep, self.w_out_o_gate[layer_idx])
+                                       + torch.matmul(prev_out_edge_hidden, self.u_out_f_gate[layer_idx])
+                                       + self.b_f_gate[layer_idx])
+            edge_cell_input = self.active(torch.matmul(in_node_rep, self.w_in_cell[layer_idx])
+                                          + torch.matmul(prev_in_edge_hidden, self.u_in_cell[layer_idx])
+                                          + torch.matmul(out_node_rep, self.w_out_cell[layer_idx])
+                                          + torch.matmul(prev_out_edge_hidden, self.u_out_cell[layer_idx])
+                                          + self.b_cell[layer_idx])
             edge_i_gate = edge_i_gate.view((self.batch, -1, self.g_hidden_dim))
             edge_o_gate = edge_o_gate.view((self.batch, -1, self.g_hidden_dim))
             edge_f_gate = edge_f_gate.view((self.batch, -1, self.g_hidden_dim))
