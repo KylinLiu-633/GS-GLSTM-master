@@ -91,42 +91,42 @@ class GsGLstmL(nn.Module):
         self.in_node_mask = torch.zeros(self.batch, self.max_node_num, self.max_in_node_num)
         self.out_node_mask = torch.zeros(self.batch, self.max_node_num, self.max_out_node_num)
 
-        self.w_in_i_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.u_in_i_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.w_out_i_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.u_out_i_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.w_in_i_gate = nn.Parameter(nn.init.normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.u_in_i_gate = nn.Parameter(nn.init.zeros_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.w_out_i_gate = nn.Parameter(nn.init.normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.u_out_i_gate = nn.Parameter(nn.init.zeros_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
         self.b_i_gate = nn.Parameter(torch.zeros(self.layer_num, self.g_hidden_dim))
 
-        self.w_in_o_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.u_in_o_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.w_out_o_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.u_out_o_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.w_in_o_gate = nn.Parameter(nn.init.normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.u_in_o_gate = nn.Parameter(nn.init.zeros_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.w_out_o_gate = nn.Parameter(nn.init.normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.u_out_o_gate = nn.Parameter(nn.init.zeros_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
         self.b_o_gate = nn.Parameter(torch.zeros(self.layer_num, self.g_hidden_dim))
 
-        self.w_in_f_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.u_in_f_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.w_out_f_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.u_out_f_gate = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.w_in_f_gate = nn.Parameter(nn.init.normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.u_in_f_gate = nn.Parameter(nn.init.zeros_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.w_out_f_gate = nn.Parameter(nn.init.normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.u_out_f_gate = nn.Parameter(nn.init.zeros_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
         self.b_f_gate = nn.Parameter(torch.zeros(self.layer_num, self.g_hidden_dim))
 
-        self.w_in_cell = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.u_in_cell = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.w_out_cell = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
-        self.u_out_cell = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.w_in_cell = nn.Parameter(nn.init.normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.u_in_cell = nn.Parameter(nn.init.zeros_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.w_out_cell = nn.Parameter(nn.init.normal_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
+        self.u_out_cell = nn.Parameter(nn.init.zeros_(torch.Tensor(self.layer_num, self.g_hidden_dim, self.g_hidden_dim)))
         self.b_cell = nn.Parameter(torch.zeros(self.layer_num, self.g_hidden_dim))
 
         self.edge_rep = nn.Linear(self.g_hidden_dim + self.edge_label_dim, self.g_hidden_dim)
 
-        self.w_rel = nn.Parameter(torch.Tensor(self.encoder_dim * self.entity_num, self.relation_num))
-        self.b_rel = nn.Parameter(torch.Tensor(self.relation_num))
+        self.w_rel = nn.Parameter(nn.init.normal_(torch.Tensor(self.encoder_dim * self.entity_num, self.relation_num)))
+        self.b_rel = nn.Parameter(torch.zeros(self.relation_num))
 
         # self.node_hidden = nn.Parameter(torch.Tensor(self.batch, self.max_node_num, self.g_hidden_dim))
         # self.node_cell = nn.Parameter(torch.Tensor(self.batch, self.max_node_num, self.g_hidden_dim))
         self.node_hidden = None
-        self.node_cell = nn.init.normal_(torch.Tensor(self.batch, self.max_node_num, self.g_hidden_dim)).to(self.device)
+        self.node_cell = nn.init.zeros_(torch.Tensor(self.batch, self.max_node_num, self.g_hidden_dim)).to(self.device)
 
         self.rep = torch.empty(self.batch, self.max_node_num, self.max_in_node_num, self.g_hidden_dim)
-        self.rep = nn.Parameter(nn.init.normal_(self.rep))
+        self.rep = nn.Parameter(nn.init.zeros_(self.rep))
         self.active = nn.Sigmoid()
 
         # The output of word_embedding is word representation for nodes, where each node only includes one word
@@ -286,7 +286,7 @@ class GsGLstmL(nn.Module):
         rep = self._get_entity_by_index(encoder_state, entity_indexs)
         rep = rep.mean(-2)
         rep = rep.view((self.batch, -1)).to(self.device)
-        rep = Func.softmax(torch.tanh(torch.matmul(rep, self.w_rel) + self.b_rel + 1e-5), dim=-1)
+        rep = Func.softmax(torch.tanh(torch.matmul(rep, self.w_rel) + self.b_rel + 1e-8), dim=-1)
 
         return rep
 

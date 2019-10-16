@@ -9,8 +9,8 @@ import torch
 import torch.optim as optim
 from torch.utils import data
 from utils import get_data_from_fof, get_data_from_file, padding_3d
-from data_preprocessing import get_dataset_from_instances, collect_data
-from data_preprocessing import word_mapping, char_mapping, edge_mapping
+from utils import get_dataset_from_instances, collect_data
+from utils import word_mapping, char_mapping, edge_mapping
 from network import GsGLstm
 
 
@@ -224,19 +224,21 @@ if __name__ == "__main__":
     dev_loader = data.DataLoader(dataset=dev_dataset, batch_size=batch_size, shuffle=True,
                                  collate_fn=collate_fn, num_workers=0, drop_last=True)
 
+    options.device = device
     if options.training:
 
         _model = GsGLstm(options)
         _model = _model.to(device)
 
-        optimizer = optim.Adam(_model.parameters(), lr=options.learning_rate)
+        optimizer = optim.Adam(_model.parameters(), lr=options.learning_rate, weight_decay=options.lambda_l2)
+        # optimizer = optim.Adadelta(_model.parameters(), lr=options.learning_rate, weight_decay=options.lambda_l2)
         c_loss = torch.nn.CrossEntropyLoss()
 
         with torch.no_grad():
             for batch_idx, (node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes, in_labels, out_nodes, out_labels,
                             entity_indexs, truth_tags, in_node_mask, out_node_mask, entity_mask) in enumerate(dev_loader):
                 result = _model(node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes,in_labels, out_nodes, out_labels,
-                                entity_indexs,truth_tags,in_node_mask, out_node_mask, entity_mask, options)
+                                entity_indexs, truth_tags,in_node_mask, out_node_mask, entity_mask, options)
                 print("Model set well...")
                 break
         plot_losses = []
@@ -245,37 +247,43 @@ if __name__ == "__main__":
         best_accu = 0.
 
         for epoch in range(options.max_epochs):
-            # if epoch > 1:
-            #     break
+            if epoch > 5:
+                break
             start_t = time.time()
             print("Start epoch {}...".format(epoch))
+            log_file.write("In epoch {}\n".format(epoch))
+            log_file.flush()
             loss_total = 0.
 
             for batch_idx, (node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes, in_labels, out_nodes, out_labels,
                             entity_indexs, truth_tags, in_node_mask, out_node_mask, entity_mask) in enumerate(train_loader):
-                # if batch_idx > 5:
-                #     break
-                print("Running in train set epoch {} batch {}".format(epoch, batch_idx))
-                result = _model(node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes,in_labels, out_nodes, out_labels,
-                                entity_indexs,truth_tags,in_node_mask, out_node_mask, entity_mask, options)
+                if batch_idx > 2:
+                    break
+                for k in range(100):
+                    optimizer.zero_grad()
+                    print("Running in train set epoch {} batch {}".format(epoch, batch_idx))
+                    result = _model(node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes,in_labels, out_nodes, out_labels,
+                                    entity_indexs,truth_tags,in_node_mask, out_node_mask, entity_mask, options)
 
-                truth_tags = torch.tensor(truth_tags).long()
+                    truth_tags = torch.tensor(truth_tags).long()
 
-                loss = c_loss(result, truth_tags)
-                loss_total += loss.item()
-                print("loss", loss.item())
-                loss.backward(retain_graph=True)
-                optimizer.step()
-                optimizer.zero_grad()
-                if batch_idx % 40 == 0 and batch_idx is not 0:
-                    if epoch > 5:
-                        plot_losses.append(loss.detach().cpu().numpy())
-                    loss_total /= 40
-                    log_file.write("In batch {} the average error is : {}\n".format(batch_idx, loss_total))
-                    log_file.flush()
-                    sys.stdout.flush()
-                    print("In batch {} the average error is : {}".format(batch_idx, loss_total))
-                    loss_total = 0.
+                    loss = c_loss(result, truth_tags)
+                    loss_total += loss.item()
+                    # print("loss", loss.item())
+                    loss.backward(retain_graph=True)
+                    optimizer.step()
+                    # optimizer.zero_grad()
+                    # if batch_idx % 40 == 0 and batch_idx is not 0:
+                    if k % 10 == 0:
+                        if epoch > 5:
+                            plot_losses.append(loss.detach().cpu().numpy())
+                        loss_total /= 10
+                        # loss_total /= 40
+                        log_file.write("In batch {} the average error is : {}\n".format(batch_idx, loss_total))
+                        log_file.flush()
+                        sys.stdout.flush()
+                        print("In batch {} the average error is : {}".format(batch_idx, loss_total))
+                        loss_total = 0.
             print("Training time:", int((time.time() - start_t) / 60), "m",
                   int((time.time() - start_t) % 60), "s")
             predictions = []
@@ -288,8 +296,8 @@ if __name__ == "__main__":
                 batch_num = 0
                 for batch_idx, (node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes, in_labels, out_nodes, out_labels,
                                 entity_indexs, truth_tags, in_node_mask, out_node_mask, entity_mask) in enumerate(dev_loader):
-                    # if batch_idx > 1:
-                    #     break
+                    if batch_idx > 1:
+                        break
                     result = _model(node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes, in_labels, out_nodes,
                                     out_labels,
                                     entity_indexs, truth_tags, in_node_mask, out_node_mask, entity_mask, options)
@@ -323,12 +331,12 @@ if __name__ == "__main__":
                         print("Saving model to the disk...")
                         torch.save(_model.state_dict(), model_path)
 
-            if epoch - max_epoch > 20:
+            if epoch - max_epoch > 8:
                 break
 
     if options.testing:
         print("Loading testing set...")
-        options.in_path = "../data/dev_list_0"
+        options.train_path = options.test_path
         result_file_path = log_dir + "/song.{}".format(options.suffix) + "_test_result.txt"
         result_file = open(result_file_path, "wt")
         result_file.write(str(model_path) + "\n")
@@ -337,13 +345,14 @@ if __name__ == "__main__":
         if options.infile_format == "fof":
             test_set, len_node, len_in_node, len_out_node, entity_size = get_data_from_fof(options)
         else:
-            test_set, len_node, len_in_node, len_out_node, entity_size = get_data_from_file(options.train_path,
+            test_set, len_node, len_in_node, len_out_node, entity_size = get_data_from_file(options.test_path,
                                                                                              options)
 
         test_set = get_dataset_from_instances(test_set, word_to_id, char_to_id, edge_to_id, options)
-        test_dataset = Dataset(dev_set)
+        print('Number of testing samples:' + str(len(test_set)))
+        test_dataset = Dataset(test_set)
         test_loader = data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=True,
-                                     collate_fn=collate_fn, num_workers=0, drop_last=True)
+                                      collate_fn=collate_fn, num_workers=0, drop_last=True)
 
         c_loss = torch.nn.CrossEntropyLoss()
 
@@ -351,6 +360,9 @@ if __name__ == "__main__":
         _model.load_state_dict(torch.load(model_path))
         _model = _model.to(device)
         _model = _model.eval()
+
+        for param in _model.parameters():
+            print(type(param.data), param.size())
 
         predictions = []
         start_t = time.time()
@@ -362,8 +374,9 @@ if __name__ == "__main__":
             batch_num = 0
             for batch_idx, (node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes, in_labels, out_nodes, out_labels,
                             entity_indexs, truth_tags, in_node_mask, out_node_mask, entity_mask) in enumerate(test_loader):
-                # if batch_idx > 1:
-                #     break
+                if batch_idx > 1:
+                    break
+                print("Running on the batch {}".format(batch_idx))
                 result = _model(node_num, lemmas, lemmas_idx, lemmas_chars, in_nodes,
                                 in_labels, out_nodes, out_labels, entity_indexs,
                                 truth_tags, in_node_mask, out_node_mask, entity_mask,
